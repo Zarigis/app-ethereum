@@ -28,7 +28,7 @@ include $(BOLOS_SDK)/Makefile.defines
 ifeq ($(CHAIN),)
     CHAIN = ethereum
     # Temporary definition to ensure VSCode extension works... To be cleaned later
-    APPNAME = Ethereum
+    APPNAME = EthereumDemo
 endif
 
 SUPPORTED_CHAINS = $(shell find makefile_conf/chain/ -type f -name '*.mk'| sed 's/.*\/\(.*\).mk/\1/g' | sort)

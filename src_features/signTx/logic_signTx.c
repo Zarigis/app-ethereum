@@ -11,10 +11,13 @@
 #include "crypto_helpers.h"
 #include "format.h"
 #include "manage_asset_info.h"
+#include "ui_nbgl.h"
 
 #define ERR_SILENT_MODE_CHECK_FAILED 0x6001
 
 static bool g_use_standard_ui;
+static char acc_data[SHARED_CTX_FIELD_1_SIZE];
+static uint32_t acc_data_len;
 
 static uint32_t splitBinaryParameterPart(char *result, size_t result_size, uint8_t *parameter) {
     uint32_t i;
@@ -24,8 +27,8 @@ static uint32_t splitBinaryParameterPart(char *result, size_t result_size, uint8
         }
     }
     if (i == 8) {
-        result[0] = '0';
-        result[1] = '0';
+        result[0] = '.';
+        result[1] = '.';
         result[2] = '\0';
         return 2;
     } else {
@@ -33,6 +36,15 @@ static uint32_t splitBinaryParameterPart(char *result, size_t result_size, uint8
         return ((8 - i) * 2);
     }
 }
+
+static void reviewChoice(bool confirm) {
+    if (!confirm) {
+        io_seproxyhal_touch_data_ok(NULL);
+    } else {
+        io_seproxyhal_touch_data_cancel(NULL);
+    }
+}
+
 
 customStatus_e customProcessor(txContext_t *context) {
     if (((context->txType == LEGACY && context->currentField == LEGACY_RLP_DATA) ||
@@ -92,6 +104,10 @@ customStatus_e customProcessor(txContext_t *context) {
             if (!N_storage.contractDetails) {
                 return CUSTOM_NOT_HANDLED;
             }
+            PRINTF("RESET ACC DATA");
+
+            acc_data_len = 0;
+            memset(acc_data, 0, sizeof(acc_data));
             dataContext.tokenContext.fieldIndex = 0;
             dataContext.tokenContext.fieldOffset = 0;
             blockSize = 4;
@@ -146,30 +162,48 @@ customStatus_e customProcessor(txContext_t *context) {
             if (fieldPos != 0) {
                 dataContext.tokenContext.fieldIndex++;
             }
+
             dataContext.tokenContext.fieldOffset = 0;
+
+
             if (fieldPos == 0) {
                 format_hex(dataContext.tokenContext.data,
                            4,
-                           strings.tmp.tmp,
-                           sizeof(strings.tmp.tmp));
-                ui_confirm_selector();
+                           acc_data,
+                           SHARED_CTX_FIELD_1_SIZE);
+                acc_data_len += 8;
+                PRINTF("ACC DATA 1: %s\n", acc_data);
+                return CUSTOM_HANDLED;
             } else {
                 uint32_t offset = 0;
                 uint32_t i;
-                snprintf(strings.tmp.tmp2,
-                         sizeof(strings.tmp.tmp2),
-                         "Field %d",
-                         dataContext.tokenContext.fieldIndex);
                 for (i = 0; i < 4; i++) {
-                    offset += splitBinaryParameterPart(strings.tmp.tmp + offset,
-                                                       sizeof(strings.tmp.tmp) - offset,
+                    offset += splitBinaryParameterPart(acc_data + acc_data_len + offset,
+                                                       SHARED_CTX_FIELD_1_SIZE - acc_data_len - offset,
                                                        dataContext.tokenContext.data + 8 * i);
-                    if (i != 3) {
-                        strings.tmp.tmp[offset++] = ':';
-                    }
                 }
-                ui_confirm_parameter();
+                acc_data_len += offset;
+                PRINTF("ACC DATA 1: %s\n", acc_data);
+                if (acc_data_len > 255) {
+                    snprintf(g_stax_shared_buffer, 255, "%s", acc_data);
+                    acc_data_len = 0;
+                    memset(acc_data, 0, sizeof(acc_data));
+
+                    nbgl_useCaseChoice(&C_Warning_64px,
+                        "Blind signing ahead",
+                        g_stax_shared_buffer,
+                        "Back to safety",
+                        "Continue anyway",
+                        reviewChoice);
+                    
+                    return CUSTOM_SUSPENDED;
+                    
+                }
+                return CUSTOM_HANDLED;
             }
+
+            return CUSTOM_HANDLED;
+            // ui_confirm_selector();
         } else {
             return CUSTOM_HANDLED;
         }
@@ -553,6 +587,30 @@ void start_signature_flow(void) {
     }
 }
 
+void show_blind_data();
+
+static void ui_warning_blind_signing_choice(bool confirm) {
+    if (confirm) {
+        reset_app_context();
+        io_seproxyhal_send_status(APDU_RESPONSE_CONDITION_NOT_SATISFIED);
+        ui_idle();
+    } else {
+        start_signature_flow();
+    }
+}
+
+
+void show_blind_data() {
+    snprintf(g_stax_shared_buffer, 255, "%s", acc_data);
+    
+    nbgl_useCaseChoice(&C_Warning_64px,
+                "Blind signing ahead",
+                g_stax_shared_buffer,
+                "Back to safety",
+                "Continue anyway",
+                ui_warning_blind_signing_choice);
+}
+
 void finalizeParsing(void) {
     g_use_standard_ui = true;
 
@@ -564,11 +622,20 @@ void finalizeParsing(void) {
     if (G_called_from_swap && g_use_standard_ui) {
         io_seproxyhal_touch_tx_ok(NULL);
     } else {
+        PRINTF("ACC DATA 4: %s", acc_data);
+
+        if (acc_data_len > 0) {
+            show_blind_data();
+        } else {
+            start_signature_flow();
+        }
+        /*
         // If blind-signing detected, start the warning flow beforehand
         if (tmpContent.txContent.dataPresent) {
             ui_warning_blind_signing();
         } else {
             start_signature_flow();
         }
+        */
     }
 }
