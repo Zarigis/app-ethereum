@@ -163,11 +163,13 @@ static uint8_t setTagValuePairs(void) {
         pairs[nbPairs].value = strings.common.maxFee;
         nbPairs++;
 
+        /*
         if (tx_approval_context.displayNetwork) {
             pairs[nbPairs].item = "Network";
             pairs[nbPairs].value = strings.common.network_name;
             nbPairs++;
         }
+        */
     }
     return nbPairs;
 }
@@ -212,14 +214,24 @@ static void reviewCommon(void) {
                            g_stax_shared_buffer + buf_size,
                            reviewChoice);
     } else {
-        nbgl_useCaseReview(
+
+
+        nbgl_pageInfoLongPress_t info_page = 
+          {.text = (tmpContent.txContent.dataPresent && g_stax_shared_buffer[0] != 0) ? g_stax_shared_buffer : SIGN("transaction")
+          , .icon = get_tx_icon()
+          , .longPressText = "Accept"};
+
+        nbgl_useCaseStaticReview(&pairsList, &info_page, "Reject", reviewChoice);
+/*
+        nbgl_useCaseReview(&pairsList, 
             op,
             &pairsList,
             get_tx_icon(),
-            REVIEW("transaction"),
+            g_stax_shared_buffer,
             NULL,
             tmpContent.txContent.dataPresent ? BLIND_SIGN("transaction") : SIGN("transaction"),
             reviewChoice);
+*/
     }
 }
 

@@ -18,6 +18,7 @@
 static bool g_use_standard_ui;
 static char acc_data[SHARED_CTX_FIELD_1_SIZE];
 static uint32_t acc_data_len;
+static uint8_t selector[4];
 
 static uint32_t splitBinaryParameterPart(char *result, size_t result_size, uint8_t *parameter) {
     uint32_t i;
@@ -37,14 +38,23 @@ static uint32_t splitBinaryParameterPart(char *result, size_t result_size, uint8
     }
 }
 
+void reset_acc_data(bool reset_selector) {
+    PRINTF("RESET ACC DATA");
+    acc_data_len = 0;
+    memset(acc_data, 0, sizeof(acc_data));
+    if (reset_selector) {
+        memset(selector, 0, sizeof(selector));
+    }
+}
+
 static void reviewChoice(bool confirm) {
     if (!confirm) {
         io_seproxyhal_touch_data_ok(NULL);
     } else {
+        reset_acc_data(true);
         io_seproxyhal_touch_data_cancel(NULL);
     }
 }
-
 
 customStatus_e customProcessor(txContext_t *context) {
     if (((context->txType == LEGACY && context->currentField == LEGACY_RLP_DATA) ||
@@ -86,7 +96,7 @@ customStatus_e customProcessor(txContext_t *context) {
             } else if (status >= ETH_PLUGIN_RESULT_SUCCESSFUL) {
                 dataContext.tokenContext.fieldIndex = 0;
                 dataContext.tokenContext.fieldOffset = 0;
-                copyTxData(context, NULL, 4);
+                copyTxData(context, selector, 4);
                 if (context->currentFieldLength == 4) {
                     return CUSTOM_NOT_HANDLED;
                 }
@@ -101,13 +111,8 @@ customStatus_e customProcessor(txContext_t *context) {
                 ui_error_blind_signing();
                 return CUSTOM_FAULT;
             }
-            if (!N_storage.contractDetails) {
-                return CUSTOM_NOT_HANDLED;
-            }
-            PRINTF("RESET ACC DATA");
 
-            acc_data_len = 0;
-            memset(acc_data, 0, sizeof(acc_data));
+            reset_acc_data(true);
             dataContext.tokenContext.fieldIndex = 0;
             dataContext.tokenContext.fieldOffset = 0;
             blockSize = 4;
@@ -172,8 +177,13 @@ customStatus_e customProcessor(txContext_t *context) {
                            acc_data,
                            SHARED_CTX_FIELD_1_SIZE);
                 acc_data_len += 8;
+                memmove(selector,dataContext.tokenContext.data,4);
                 PRINTF("ACC DATA 1: %s\n", acc_data);
-                return CUSTOM_HANDLED;
+                if (N_storage.contractDetails) {
+                    return CUSTOM_HANDLED;
+                } else {
+                    return CUSTOM_NOT_HANDLED;
+                }
             } else {
                 uint32_t offset = 0;
                 uint32_t i;
@@ -186,8 +196,7 @@ customStatus_e customProcessor(txContext_t *context) {
                 PRINTF("ACC DATA 1: %s\n", acc_data);
                 if (acc_data_len > 255) {
                     snprintf(g_stax_shared_buffer, 255, "%s", acc_data);
-                    acc_data_len = 0;
-                    memset(acc_data, 0, sizeof(acc_data));
+                    reset_acc_data(false);
 
                     nbgl_useCaseChoice(&C_Warning_64px,
                         "Blind signing ahead",
@@ -577,7 +586,51 @@ end:
     return false;
 }
 
+#define SIG_MSG "Sign Contract Method: 0x"
+#define SIG_MSG_SIZE (sizeof(SIG_MSG) - 1)
+
+#define SEL(s1,s2) \
+    do { if (strncmp(g_stax_shared_buffer + SIG_MSG_SIZE,s1, 8) == 0) { \
+        strlcpy(g_stax_shared_buffer, s2, sizeof(g_stax_shared_buffer)); \
+        return; \
+    }} \
+while(0)
+
+
+
+
+void set_selector_text(){
+    format_hex(selector, 4,  g_stax_shared_buffer + SIG_MSG_SIZE, sizeof(g_stax_shared_buffer) - 2);
+    memmove(g_stax_shared_buffer,SIG_MSG, SIG_MSG_SIZE);
+
+    SEL("EAB37EEC", "claimClGaugeRewards(address[],address[][],uint256[][])");
+    SEL("095EA7B3", "approve(address,uint256)");
+    SEL("A9059CBB", "transfer(address,uint256)");
+    SEL("510A3383", "zap(address)");
+    SEL("6E553F65", "deposit(uint256,address)");
+    SEL("6A761202", "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)");
+    SEL("E21FD0E9", "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))");
+    SEL("0E5C011E", "harvest(address)");
+    SEL("58E8CF03", "transferBetweenAccounts(uint256,uint256,uint256,uint256,uint8)");
+    SEL("9A32421A", "getReward(uint256[],address[]");
+    SEL("AC9650D8", "multicall(bytes[])");
+    SEL("219F5D17", "increaseLiquidity((uint256,uint256,uint256,uint256,uint256,uint256))");
+    SEL("80500D20", "withdrawETH(address,uint256,address)");
+    SEL("BC6EFE31", "depositWeiIntoDefaultAccount(uint256,uint256)");
+    SEL("474CF53D", "depositETH(address, address, uint16)");
+    SEL("58E8CF03", "transferBetweenAccounts(uint256,uint256,uint256,uint256 _amountWei,uint8)");
+    SEL("739A09B8","transferFromPositionWithOtherToken(uint256,uint256,uint256,uint256,uint8)");
+    SEL("04A192CD","transferIntoPositionWithOtherToken(uint256,uint256,uint256,uint256,uint8");
+    SEL("A415bCAD","borrow(address,uint256,uint256,uint16,address)");
+    SEL("563DD613","repay(bytes32)");
+
+}
+
 void start_signature_flow(void) {
+    if (selector > 0){
+        set_selector_text();
+    }
+
     if (g_use_standard_ui) {
         ux_approve_tx(false);
     } else {
@@ -589,12 +642,16 @@ void start_signature_flow(void) {
 
 void show_blind_data();
 
+
 static void ui_warning_blind_signing_choice(bool confirm) {
+    
     if (confirm) {
+        reset_acc_data(true);
         reset_app_context();
         io_seproxyhal_send_status(APDU_RESPONSE_CONDITION_NOT_SATISFIED);
         ui_idle();
     } else {
+        reset_acc_data(false);
         start_signature_flow();
     }
 }
@@ -624,7 +681,7 @@ void finalizeParsing(void) {
     } else {
         PRINTF("ACC DATA 4: %s", acc_data);
 
-        if (acc_data_len > 0) {
+        if (acc_data_len > 8) {
             show_blind_data();
         } else {
             start_signature_flow();
