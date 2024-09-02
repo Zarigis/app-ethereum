@@ -6,7 +6,7 @@
 #include "handle_swap_sign_transaction.h"
 #include "feature_signTx.h"
 
-unsigned int io_seproxyhal_touch_tx_ok(__attribute__((unused)) const bagl_element_t *e) {
+unsigned int io_seproxyhal_touch_tx_ok1() {
     uint32_t info = 0;
     int err;
     if (bip32_derive_ecdsa_sign_rs_hash_256(CX_CURVE_256K1,
@@ -68,10 +68,25 @@ unsigned int io_seproxyhal_touch_tx_ok(__attribute__((unused)) const bagl_elemen
             os_sched_exit(-1);
         }
     }
+
+    return 0;  // do not redraw the widget
+}
+
+unsigned int io_seproxyhal_touch_tx_ok2() {
     reset_app_context();
     // Display back the original UX
     ui_idle();
-    return 0;  // do not redraw the widget
+    return 0;
+}
+
+unsigned int io_seproxyhal_touch_tx_ok(__attribute__((unused)) const bagl_element_t *e) {
+    int result = io_seproxyhal_touch_tx_ok1();
+    if (result == 0) {
+        return io_seproxyhal_touch_tx_ok2();
+    } else {
+        return result;
+    }
+    
 }
 
 unsigned int io_seproxyhal_touch_tx_cancel(__attribute__((unused)) const bagl_element_t *e) {

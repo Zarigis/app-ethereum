@@ -39,13 +39,15 @@ static void reviewReject(void) {
 }
 
 static void confirmTransation(void) {
-    io_seproxyhal_touch_tx_ok(NULL);
+    io_seproxyhal_touch_tx_ok2();
     memset(&tx_approval_context, 0, sizeof(tx_approval_context));
 }
 
 static void reviewChoice(bool confirm) {
     if (confirm) {
-        nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_SIGNED, confirmTransation);
+        if (io_seproxyhal_touch_tx_ok1() == 0) {
+            nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_SIGNED, confirmTransation);
+        }
     } else {
         nbgl_useCaseReviewStatus(STATUS_TYPE_TRANSACTION_REJECTED, reviewReject);
     }
