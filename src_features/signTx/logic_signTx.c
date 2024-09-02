@@ -589,41 +589,54 @@ end:
 #define SIG_MSG "Sign Contract Method: 0x"
 #define SIG_MSG_SIZE (sizeof(SIG_MSG) - 1)
 
-#define SEL(s1,s2) \
-    do { if (strncmp(g_stax_shared_buffer + SIG_MSG_SIZE,s1, 8) == 0) { \
-        strlcpy(g_stax_shared_buffer, s2, sizeof(g_stax_shared_buffer)); \
-        return; \
-    }} \
-while(0)
+
+bool selector_case(char* s1, char* s2){
+    if (strncmp(g_stax_shared_buffer + SIG_MSG_SIZE,s1, 8) == 0){
+        strlcpy(g_stax_shared_buffer, s2, sizeof(g_stax_shared_buffer));
+        return true;
+    }
+    return false;
+}
 
 
+#define SEL(s1,s2) if (selector_case((char*)s1, (char*)s2)) return
 
 
 void set_selector_text(){
     format_hex(selector, 4,  g_stax_shared_buffer + SIG_MSG_SIZE, sizeof(g_stax_shared_buffer) - 2);
     memmove(g_stax_shared_buffer,SIG_MSG, SIG_MSG_SIZE);
 
-    SEL("EAB37EEC", "claimClGaugeRewards(address[],address[][],uint256[][])");
-    SEL("095EA7B3", "approve(address,uint256)");
-    SEL("A9059CBB", "transfer(address,uint256)");
-    SEL("510A3383", "zap(address)");
-    SEL("6E553F65", "deposit(uint256,address)");
-    SEL("6A761202", "execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)");
-    SEL("E21FD0E9", "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))");
-    SEL("0E5C011E", "harvest(address)");
-    SEL("58E8CF03", "transferBetweenAccounts(uint256,uint256,uint256,uint256,uint8)");
-    SEL("9A32421A", "getReward(uint256[],address[]");
-    SEL("AC9650D8", "multicall(bytes[])");
-    SEL("219F5D17", "increaseLiquidity((uint256,uint256,uint256,uint256,uint256,uint256))");
-    SEL("80500D20", "withdrawETH(address,uint256,address)");
-    SEL("BC6EFE31", "depositWeiIntoDefaultAccount(uint256,uint256)");
-    SEL("474CF53D", "depositETH(address, address, uint16)");
-    SEL("58E8CF03", "transferBetweenAccounts(uint256,uint256,uint256,uint256 _amountWei,uint8)");
+    SEL("EAB37EEC","claimClGaugeRewards(address[],address[][],uint256[][])");
+    SEL("095EA7B3","approve(address,uint256)");
+    SEL("A9059CBB","transfer(address,uint256)");
+    SEL("510A3383","zap(address)");
+    SEL("6E553F65","deposit(uint256,address)");
+    SEL("6A761202","execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)");
+    SEL("E21FD0E9","swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))");
+    SEL("0E5C011E","harvest(address)");
+    SEL("58E8CF03","transferBetweenAccounts(uint256,uint256,uint256,uint256,uint8)");
+    SEL("9A32421A","getReward(uint256[],address[]");
+    SEL("AC9650D8","multicall(bytes[])");
+    SEL("219F5D17","increaseLiquidity((uint256,uint256,uint256,uint256,uint256,uint256))");
+    SEL("80500D20","withdrawETH(address,uint256,address)");
+    SEL("BC6EFE31","depositWeiIntoDefaultAccount(uint256,uint256)");
+    SEL("474CF53D","depositETH(address, address, uint16)");
+    SEL("58E8CF03","transferBetweenAccounts(uint256,uint256,uint256,uint256 _amountWei,uint8)");
     SEL("739A09B8","transferFromPositionWithOtherToken(uint256,uint256,uint256,uint256,uint8)");
     SEL("04A192CD","transferIntoPositionWithOtherToken(uint256,uint256,uint256,uint256,uint8");
     SEL("A415bCAD","borrow(address,uint256,uint256,uint16,address)");
     SEL("563DD613","repay(bytes32)");
-
+    SEL("FA93D69A","depositIntoVaultForDolomiteMargin(uint256,uint256)");
+    SEL("807CB86A","withdrawWeiFromDefaultAccount(uint256,uint256,uint8)");
+    SEL("258AECF6","transferIntoPositionWithUnderlyingToken(uint256,uint256,uint256)");
+    SEL("A415BCAD","borrow(address,uint256,uint256,uint16,address)");
+    SEL("474CF53D","depositETH(address,address,uint16)");
+    SEL("8FB8B6C7","closeBorrowPosition(uint256,uint256,uint256[])");
+    SEL("3B718DC6","claim((uint256,uint256,bytes32[])[])");
+    SEL("2E1A7D4D","withdraw(uint256)");
+    SEL("8AAC16BA","xcall(uint32,address,address,address,uint256,uint256,bytes)");
+    SEL("852A12E3","redeemUnderlying(uint256)");
+    SEL("E21FD0E9","swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))");
 }
 
 void start_signature_flow(void) {
@@ -668,6 +681,50 @@ void show_blind_data() {
                 ui_warning_blind_signing_choice);
 }
 
+
+bool isWhitelisted(){
+    int i;
+    int j;
+    for(i = 0; i < N_storage.whiteListedLen; i++){
+        for(j = 0; j < ADDRESS_LENGTH; j++){
+            if (tmpContent.txContent.destination[j] != N_storage.whiteListed[i][j]) {
+                break;
+            }
+        }
+        if (j == ADDRESS_LENGTH){
+            return true;
+        }
+    }
+    return false;
+}
+
+static void write_whitelist() {
+    nvm_write((void *) &(N_storage.whiteListed[N_storage.whiteListedLen]), (void *) &(tmpContent.txContent.destination), sizeof(tmpContent.txContent.destination));
+    uint8_t len_vaue = N_storage.whiteListedLen + 1;
+    nvm_write((void *) &(N_storage.whiteListedLen), (void *) &(len_vaue), sizeof(len_vaue));
+}
+
+static void ui_warning_not_whitelisted_choice(bool confirm) {
+    if (confirm) {
+        write_whitelist();
+    }
+    if (acc_data_len > 8) {
+        show_blind_data();
+    } else {
+        start_signature_flow();
+    }
+}
+
+
+void ui_warning_not_whitelisted(void) {
+    nbgl_useCaseChoice(&C_Warning_64px,
+                       "Address is not whitelisted",
+                       strings.common.toAddress,
+                       "Add to whitelist",
+                       "Continue without adding",
+                       ui_warning_not_whitelisted_choice);
+}
+
 void finalizeParsing(void) {
     g_use_standard_ui = true;
 
@@ -676,10 +733,17 @@ void finalizeParsing(void) {
     }
     // If called from swap, the user has already validated a standard transaction
     // And we have already checked the fields of this transaction above
-    if (G_called_from_swap && g_use_standard_ui) {
-        io_seproxyhal_touch_tx_ok(NULL);
-    } else {
+    // if (G_called_from_swap && g_use_standard_ui) {
+    //    io_seproxyhal_touch_tx_ok(NULL);
+    // } else {
         PRINTF("ACC DATA 4: %s", acc_data);
+        setAddressUsed();
+        
+
+        if(!isWhitelisted() && N_storage.useWhitelist){
+            ui_warning_not_whitelisted();
+            return;
+        }
 
         if (acc_data_len > 8) {
             show_blind_data();
@@ -694,5 +758,5 @@ void finalizeParsing(void) {
             start_signature_flow();
         }
         */
-    }
+    // }
 }

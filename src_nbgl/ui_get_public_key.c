@@ -5,23 +5,47 @@
 #include "network.h"
 #include "network_icons.h"
 
-static void cancel_send(void) {
-    io_seproxyhal_touch_address_cancel(NULL);
+static char previousAddress[41];
+
+// was the previously-requested public address used in a transaction?
+// cleared if a different address is used in a tx or if a different
+// public key is requested
+static bool addressWasUsed;
+
+bool shouldSkipPubkeyConfirm(){
+    return addressWasUsed && strncmp(previousAddress,tmpCtx.publicKeyContext.address,41) == 0;
 }
 
-static void confirm_send(void) {
-    io_seproxyhal_touch_address_ok(NULL);
+void setPreviousAddress(){
+    if (strncmp(previousAddress,tmpCtx.publicKeyContext.address,41) == 0) {
+        return;
+    } else {
+        strcpy(previousAddress, tmpCtx.publicKeyContext.address);
+        addressWasUsed = false;
+    }
+    
+}
+
+void setAddressUsed(){
+    if (strncmp(previousAddress,strings.common.fromAddress + 2,41) == 0){
+        addressWasUsed = true;
+    } else {
+        addressWasUsed = false;
+    }
 }
 
 static void review_choice(bool confirm) {
     if (confirm) {
-        nbgl_useCaseReviewStatus(STATUS_TYPE_ADDRESS_VERIFIED, confirm_send);
+        setPreviousAddress();
+        io_seproxyhal_touch_address_ok(NULL);
     } else {
-        nbgl_useCaseReviewStatus(STATUS_TYPE_ADDRESS_REJECTED, cancel_send);
+        io_seproxyhal_touch_address_cancel(NULL);
     }
 }
 
 void ui_display_public_key(const uint64_t *chain_id) {
+
+
     const nbgl_icon_details_t *icon;
 
     // - if a chain_id is given and it's - known, we specify its network name
@@ -41,10 +65,5 @@ void ui_display_public_key(const uint64_t *chain_id) {
         icon = get_app_icon(false);
     }
     strlcat(g_stax_shared_buffer, "address", sizeof(g_stax_shared_buffer));
-    nbgl_useCaseAddressReview(strings.common.toAddress,
-                              NULL,
-                              icon,
-                              g_stax_shared_buffer,
-                              NULL,
-                              review_choice);
+    nbgl_useCaseChoice(&C_Warning_64px, "Derive public key?", strings.common.toAddress, "Allow", "Cancel", review_choice);
 }

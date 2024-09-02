@@ -33,6 +33,10 @@ typedef struct internalStorage_t {
     bool dataAllowed;
     bool contractDetails;
     bool displayNonce;
+    uint8_t whiteListed[256][ADDRESS_LENGTH];
+    uint8_t whiteListedLen;
+    bool useWhitelist;
+    bool promptPubkey;
 #ifdef HAVE_EIP712_FULL_SUPPORT
     bool verbose_eip712;
 #endif  // HAVE_EIP712_FULL_SUPPORT

@@ -11,7 +11,7 @@ void handleGetPublicKey(uint8_t p1,
                         const uint8_t *dataBuffer,
                         uint8_t dataLength,
                         unsigned int *flags,
-                        unsigned int *tx) {
+                        __attribute__((unused)) unsigned int *tx) {
     bip32_path_t bip32;
 
     if (!G_called_from_swap) {
@@ -59,16 +59,17 @@ void handleGetPublicKey(uint8_t p1,
         PRINTF("Error: Leftover unwanted data (%u bytes long)!\n", dataLength);
         THROW(APDU_RESPONSE_INVALID_DATA);
     }
-
-    if (p1 == P1_NON_CONFIRM) {
+    
+    if (p1 == P1_NON_CONFIRM && ((!N_storage.promptPubkey) || shouldSkipPubkeyConfirm())) {
+        setPreviousAddress();
         *tx = set_result_get_publicKey();
         THROW(APDU_RESPONSE_OK);
     } else {
         snprintf(strings.common.toAddress,
-                 sizeof(strings.common.toAddress),
-                 "0x%.*s",
-                 40,
-                 tmpCtx.publicKeyContext.address);
+             sizeof(strings.common.toAddress),
+             "0x%.*s",
+             40,
+             tmpCtx.publicKeyContext.address);
         // don't unnecessarily pass the current app's chain ID
         ui_display_public_key(chainConfig->chainId == chain_id ? NULL : &chain_id);
 

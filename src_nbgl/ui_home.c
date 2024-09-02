@@ -23,6 +23,8 @@ enum {
     EIP712_VERBOSE_TOKEN,
 #endif
     DEBUG_TOKEN,
+    WHITELIST_TOKEN,
+    PROMPT_PUBKEY_TOKEN
 };
 
 enum {
@@ -35,6 +37,8 @@ enum {
     EIP712_VERBOSE_ID,
 #endif
     DEBUG_ID,
+    WHITELIST_ID,
+    PROMPT_PUBKEY_ID,
     SETTINGS_SWITCHES_NB
 };
 
@@ -84,6 +88,21 @@ static void setting_toggle_callback(int token, uint8_t index, int page) {
             value = !N_storage.contractDetails;
             switches[DEBUG_ID].initState = (nbgl_state_t) value;
             nvm_write((void *) &N_storage.contractDetails, (void *) &value, sizeof(value));
+            break;
+        case WHITELIST_TOKEN:
+            value = !N_storage.useWhitelist;
+            switches[WHITELIST_ID].initState = (nbgl_state_t) value;
+            nvm_write((void *) &N_storage.useWhitelist, (void *) &value, sizeof(value));
+
+            if(!value){
+                uint8_t len = 0; 
+                nvm_write((void *) &N_storage.whiteListedLen, (void *) &len, sizeof(len));
+            }
+            break;
+        case PROMPT_PUBKEY_TOKEN:
+            value = !N_storage.promptPubkey;
+            switches[PROMPT_PUBKEY_ID].initState = (nbgl_state_t) value;
+            nvm_write((void *) &N_storage.promptPubkey, (void *) &value, sizeof(value));
             break;
     }
 }
@@ -151,6 +170,18 @@ static void prepare_and_display_home(const char *appname, const char *tagline, u
     switches[DEBUG_ID].subText = "Display contract data details.";
     switches[DEBUG_ID].token = DEBUG_TOKEN;
     switches[DEBUG_ID].tuneId = TUNE_TAP_CASUAL;
+
+    switches[WHITELIST_ID].initState = N_storage.useWhitelist ? ON_STATE : OFF_STATE;
+    switches[WHITELIST_ID].text = "Use whitelist";
+    switches[WHITELIST_ID].subText = "Maintain whitelist of addresses.";
+    switches[WHITELIST_ID].token = WHITELIST_TOKEN;
+    switches[WHITELIST_ID].tuneId = TUNE_TAP_CASUAL;
+
+    switches[PROMPT_PUBKEY_ID].initState = N_storage.promptPubkey ? ON_STATE : OFF_STATE;
+    switches[PROMPT_PUBKEY_ID].text = "Prompt for public key generation";
+    switches[PROMPT_PUBKEY_ID].subText = "Prompt for any requests for public addresses.";
+    switches[PROMPT_PUBKEY_ID].token = PROMPT_PUBKEY_TOKEN;
+    switches[PROMPT_PUBKEY_ID].tuneId = TUNE_TAP_CASUAL;
 
     contents[0].type = SWITCHES_LIST;
     contents[0].content.switchesList.nbSwitches = SETTINGS_SWITCHES_NB;
