@@ -179,7 +179,7 @@ customStatus_e customProcessor(txContext_t *context) {
                 acc_data_len += 8;
                 memmove(selector,dataContext.tokenContext.data,4);
                 PRINTF("ACC DATA 1: %s\n", acc_data);
-                if (N_storage.contractDetails) {
+                if (N_storage.contractDetails || !context->processingField) {
                     return CUSTOM_HANDLED;
                 } else {
                     return CUSTOM_NOT_HANDLED;
@@ -708,7 +708,7 @@ static void ui_warning_not_whitelisted_choice(bool confirm) {
     if (confirm) {
         write_whitelist();
     }
-    if (acc_data_len > 8) {
+    if (N_storage.contractDetails && acc_data > 0) {
         show_blind_data();
     } else {
         start_signature_flow();
@@ -745,7 +745,7 @@ void finalizeParsing(void) {
             return;
         }
 
-        if (acc_data_len > 8) {
+        if (N_storage.contractDetails && acc_data > 0) {
             show_blind_data();
         } else {
             start_signature_flow();
